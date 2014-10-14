@@ -58,12 +58,12 @@ void pa1p1(int n, double a[][n], double p[n], double q[n], double r[n])
 void pa1p1opt(int n, double a[][n], double p[n], double q[n], double r[n])
 // Initially identical to reference; make your changes to optimize this code
 { int i,j;
-  for(i=0;i<n;i++)
-    for(j=0;j<n;j++)
-    {
+  for(i=0;i<n;i++) {
+    for(j=0;j<n;j++) {
       q[i] = q[i] + a[i][j]*p[j];
-      r[i] = r[i] + a[j][i]*p[j];
+      r[j] = r[j] + a[i][j]*p[i];
     }
+  }
 }
 
 
