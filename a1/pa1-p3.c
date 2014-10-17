@@ -60,10 +60,10 @@ void pa1p3opt(int n, double a[][n][n], double b[][n][n], double c[][n])
 // Initially identical to reference; make your changes to optimize this code
 { int i,j,k,l;
 
-  for(i=0;i<n;i++)
-   for(j=0;j<n;j++)
-    for(k=0;k<n;k++)
-     for(l=0;l<n;l++)
+for(j=0;j<n;j++)
+for(i=0;i<n;i++)
+for(l=0;l<n;l++)
+for(k=0;k<n;k++)
         C[l][k] += A[l][i][j]*B[k][j][i];
 }
 
