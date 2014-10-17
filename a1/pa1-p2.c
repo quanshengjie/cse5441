@@ -56,12 +56,12 @@ void pa1p2(int n, double a[][n], double b[][n])
 void pa1p2opt(int n, double a[][n], double b[][n])
 // Initially identical to reference; make your changes to optimize this code
 { int i,j;
-  for(i=0;i<n;i++)
-   for(j=0;j<n;j++)
-    b[i][j] = 0.5*(a[i][j] + a[j][i]);
-  for(i=0;i<n;i++)
-   for(j=0;j<n;j++)
-    a[i][j] = 0.5*(b[i][j] + b[j][i]);
+  for(i=0;i<n;i++) {
+   for(j=0;j<=i;j++) {
+    b[j][i] = b[i][j] = 0.5*(a[i][j] + a[j][i]);
+    a[j][i] = a[i][j] = 0.5*(b[i][j] + b[j][i]);
+   }
+  }
 }
 
 
