@@ -52,11 +52,14 @@ void pa1p2(int n, double a[][n], double b[][n])
 
 void pa1p2opt(int n, double a[][n], double b[][n])
 // Initially identical to reference; make your changes to optimize this code
-{ int i,j,k;
-  int t=2,c=n/t;
-  for(i=0;i<n;i++)
-  for(j=0;j<=i;j++)
-    b[j][i] = b[i][j] = 0.5*(a[i][j] + a[j][i]);
+{ int i,j;
+  int it,jt;
+  int T = 128;
+  for(it=0; it<n; it+=T)
+    for(jt=0; jt<n; jt+=T)
+      for(i=it;i<it+T;i++)
+        for(j=jt;j<jt+T;j++)
+          b[i][j] = 0.5*(a[i][j] + a[j][i]);
 }
 
 double rtclock()
