@@ -81,15 +81,27 @@ void init(double * xold, double * xnew, double * b)
 }
 
 double rhocalc(double * A)
-{ 
- double tmp;
- int i,j;
-
- tmp = 0.0;
- for(i=1;i<N+1;i++)
-   for(j=1;j<N+1;j++)
+{
+ double S = 0.0; 
+ #pragma omp parallel
+ {
+ int rank, size, istart, iend, chunk;
+ int i, j;
+ double tmp = 0.0;
+ rank=omp_get_thread_num();
+ size = omp_get_num_threads();
+ chunk = N/size;
+ istart = (rank*chunk)+1;
+ iend = istart + chunk;
+ for(i=istart; i<iend; i++) {
+   for(j=1;j<N+1;j++) {
      tmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
- return(sqrt(tmp));
+   }
+ }
+ #pragma omp atomic
+ S += tmp;
+ }
+ return(sqrt(S));
 }
 
 void update(double * xold,double * xnew,double * resid, double * b)
