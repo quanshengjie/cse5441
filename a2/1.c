@@ -86,7 +86,7 @@ double rhocalc(double * A)
  int i,j;
 
  tmp = 0.0;
- #pragma omp parallel for reduction(+:tmp)
+ #pragma omp parallel for reduction(+:tmp) private(i,j)
  for(i=1;i<N+1;i++)
    for(j=1;j<N+1;j++)
      tmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
@@ -96,13 +96,13 @@ double rhocalc(double * A)
 void update(double * xold,double * xnew,double * resid, double * b)
 {
  int i,j;
- #pragma omp parallel for schedule (static)
+ #pragma omp parallel for schedule (static) private(i,j)
  for(i=1;i<N+1;i++)
    for(j=1;j<N+1;j++){
      xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
      xnew[i*(N+2)+j]*=recipdiag;
    }
- #pragma omp parallel for schedule (static)
+ #pragma omp parallel for schedule (static) private(i,j)
  for(i=1;i<N+1;i++)
    for(j=1;j<N+1;j++){
      resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
@@ -112,7 +112,7 @@ void update(double * xold,double * xnew,double * resid, double * b)
 void copy(double * xold, double * xnew)
 { 
  int i,j;
- #pragma omp parallel for schedule (static)
+ #pragma omp parallel for schedule (static) private(i,j)
  for(i=1;i<N+1;i++)
   for(j=1;j<N+1;j++)
     xold[i*(N+2)+j]=xnew[i*(N+2)+j];
