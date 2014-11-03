@@ -10,6 +10,8 @@
 #define eps  1.0E-6
 #define maxiter 10000
 #define nprfreq 10
+#define jchunks 2
+#define ichunks 4
 
 double clkbegin, clkend;
 double t;
@@ -36,12 +38,10 @@ int main (int argc, char * argv[])
  double resid[(N+2)*(N+2)];
  double rhoinit,rhonew; 
  int i,j,iter,u;
-
+ 
  omp_set_num_threads(atoi(argv[1]));
-
  init(xold,xnew,b);
  rhoinit = rhocalc(b);
-
   clkbegin = rtclock();
  for(iter=0;iter<maxiter;iter++){
   update(xold,xnew,resid,b);
@@ -80,103 +80,102 @@ void init(double * xold, double * xnew, double * b)
 }
 
 double rhocalc(double * A)
-{
- double S = 0.0; 
+{ 
+ double S = 0.0;
  #pragma omp parallel
  {
- int rank, size;
- int istart, iend, ichunk;
- int jstart, jend, jchunk;
- int i, j;
- double tmp = 0.0;
- rank = omp_get_thread_num();
- size = omp_get_num_threads();
- ichunk = N/4;
- jchunk = N/2;
- istart = rank * ichunk / 2 + 1;
- jstart = (rank % 2) * N / 2 + 1;
- iend = istart + ichunk;
- jend = jstart + jchunk;
- for(i=1;i<N+1;i++) {
-   for(j=jstart; j<jend; j++) {
-     tmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
-   }
- }
- #pragma omp atomic
- S += tmp;
- }
+  int i, j;
+  int rank, size;
+  int ibegin, iend, jbegin, jend;
+  int ichunk, jchunk, div, mod;
+  double tmp = 0.0;
+  rank = omp_get_thread_num();
+  size = omp_get_num_threads();
+  ichunk = N/ichunks;
+  jchunk = N/jchunks;
+  ibegin = (rank / jchunks) * ichunk + 1;
+  jbegin = (rank % jchunks) * jchunk + 1;
+  iend = ibegin + ichunk;
+  jend = jbegin + jchunk;
+  for(i=ibegin;i<iend;i++) {
+    for(j=jbegin;j<jend;j++) {
+      tmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
+    }
+  }
+  #pragma omp atomic
+  S += tmp;
+ } 
  return(sqrt(S));
 }
 
 void update(double * xold,double * xnew,double * resid, double * b)
-{
+{ 
  #pragma omp parallel
  {
- int rank, size;
- int istart, iend, ichunk;
- int jstart, jend, jchunk;
- int i, j;
- double tmp = 0.0;
- rank = omp_get_thread_num();
- size = omp_get_num_threads();
- ichunk = N/4;
- jchunk = N/2;
- istart = rank * ichunk / 2 + 1;
- jstart = (rank % 2) * N / 2 + 1;
- iend = istart + ichunk;
- jend = jstart + jchunk;
- for(i=1;i<N+1;i++) {
-   for(j=jstart; j<jend; j++) {
-     xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
-     xnew[i*(N+2)+j]*=recipdiag;
-   }
+  int i, j;
+  int rank, size;
+  int ibegin, iend, jbegin, jend;
+  int ichunk, jchunk, div, mod;
+  double tmp = 0.0;
+  rank = omp_get_thread_num();
+  size = omp_get_num_threads();
+  ichunk = N/ichunks;
+  jchunk = N/jchunks;
+  ibegin = (rank / jchunks) * ichunk + 1;
+  jbegin = (rank % jchunks) * jchunk + 1;
+  iend = ibegin + ichunk;
+  jend = jbegin + jchunk;
+  for(i=ibegin;i<iend;i++) {
+    for(j=jbegin;j<jend;j++) {
+      xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
+      xnew[i*(N+2)+j]*=recipdiag;
+    }
+  }
  }
- }
-
  #pragma omp parallel
  {
- int rank, size;
- int istart, iend, ichunk;
- int jstart, jend, jchunk;
- int i, j;
- double tmp = 0.0;
- rank = omp_get_thread_num();
- size = omp_get_num_threads();
- ichunk = N/4;
- jchunk = N/2;
- istart = rank * ichunk / 2 + 1;
- jstart = (rank % 2) * N / 2 + 1;
- iend = istart + ichunk;
- jend = jstart + jchunk;
- for(i=1;i<N+1;i++) {
-   for(j=jstart; j<jend; j++) {
-     resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
+  int i, j;
+  int rank, size;
+  int ibegin, iend, jbegin, jend;
+  int ichunk, jchunk, div, mod;
+  double tmp = 0.0;
+  rank = omp_get_thread_num();
+  size = omp_get_num_threads();
+  ichunk = N/ichunks;
+  jchunk = N/jchunks;
+  ibegin = (rank / jchunks) * ichunk + 1;
+  jbegin = (rank % jchunks) * jchunk + 1;
+  iend = ibegin + ichunk;
+  jend = jbegin + jchunk;
+  for(i=ibegin;i<iend;i++) {
+    for(j=jbegin;j<jend;j++) {
+      resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
    }
+ }
  } 
- }
 } 
   
 void copy(double * xold, double * xnew)
 { 
  #pragma omp parallel
  {
- int rank, size;
- int istart, iend, ichunk;
- int jstart, jend, jchunk;
- int i, j;
- double tmp = 0.0;
- rank = omp_get_thread_num();
- size = omp_get_num_threads();
- ichunk = N/4;
- jchunk = N/2;
- istart = rank * ichunk / 2 + 1;
- jstart = (rank % 2) * N / 2 + 1;
- iend = istart + ichunk;
- jend = jstart + jchunk;
- for(i=1;i<N+1;i++) {
-  for(j=jstart; j<jend; j++) {
-    xold[i*(N+2)+j]=xnew[i*(N+2)+j];
-  }
+  int i, j;
+  int rank, size;
+  int ibegin, iend, jbegin, jend;
+  int ichunk, jchunk, div, mod;
+  double tmp = 0.0;
+  rank = omp_get_thread_num();
+  size = omp_get_num_threads();
+  ichunk = N/ichunks;
+  jchunk = N/jchunks;
+  ibegin = (rank / jchunks) * ichunk + 1;
+  jbegin = (rank % jchunks) * jchunk + 1;
+  iend = ibegin + ichunk;
+  jend = jbegin + jchunk;
+  for(i=ibegin;i<iend;i++) {
+   for(j=jbegin;j<jend;j++) {
+     xold[i*(N+2)+j]=xnew[i*(N+2)+j];
+   }
  }
  }
 }
