@@ -1,4 +1,4 @@
-all: mmdriver k1.bin k2.bin k3.bin k4.bin
+all: mmdriver k1.bin k2.bin k3.bin k4.bin k5.bin
 
 mmdriver: mmdriver.c
 	nvcc -O -o mmdriver -lcuda mmdriver.c
@@ -14,6 +14,9 @@ k3.bin: k3.cu
  
 k4.bin: k4.cu
 	nvcc -O -cubin -arch sm_20 -o k4.bin k4.cu 
+
+k5.bin: k5.cu
+	nvcc -O -cubin -arch sm_20 -o k5.bin k5.cu 
 
 clean:
 	rm mmdriver *.bin
