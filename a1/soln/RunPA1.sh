@@ -16,9 +16,9 @@ cd $TMPDIR
 # subdirectory called 5441/Au14/PA1 in the OSC home directory
 # Change it appropriately to match your directory and file name
 #
-cp $HOME/5441/a1/pa1-p1-sol.c .
-cp $HOME/5441/a1/pa1-p2-sol.c .
-cp $HOME/5441/a1/pa1-p3-sol.c .
+cp $HOME/5441/a1/soln/pa1-p1-sol.c .
+cp $HOME/5441/a1/soln/pa1-p2-sol.c .
+cp $HOME/5441/a1/soln/pa1-p3-sol.c .
 
 echo " "; echo "--------------------------------------------------------------"
 echo "Compiling Programming Assignment 1, Problem 1"

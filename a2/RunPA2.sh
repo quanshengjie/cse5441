@@ -11,8 +11,10 @@
 #PBS -S /bin/ksh
 #PBS -j oe
 
-ITER=2
+ITER=3
 
+cd $TMPDIR
+cp $HOME/5441/a2/*.c .
 
 echo " "; echo "--------------------------------------------------------------"
 echo "Compiling Programming Assignment 2, Base version"

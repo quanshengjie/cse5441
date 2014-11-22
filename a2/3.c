@@ -10,7 +10,6 @@
 #define eps  1.0E-6
 #define maxiter 10000
 #define nprfreq 10
-#define num_threads 8
 
 double clkbegin, clkend;
 double t;
