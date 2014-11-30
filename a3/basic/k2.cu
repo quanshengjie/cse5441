@@ -4,14 +4,15 @@ mmkernel( float* a, float* b, float* c,
   int n, int m, int p )
 {
     int tx = threadIdx.x;
-    int i = blockIdx.x*32 + tx;
+    int bx = blockDim.x;
+    int i = blockIdx.x*bx + tx;
     int j = blockIdx.y;
-    __shared__ float cb[32];
+    __shared__ float cb[512];
 
     float sum = 0.0;
-    for( int ks = 0; ks < p; ks += 32 ){
+    for( int ks = 0; ks < p; ks += bx ){
       cb[tx] = c[ks+tx+pitch_c*j];
-      for( int k = ks; k < ks+32; ++k )
+      for( int k = ks; k < ks+bx; ++k )
         sum += b[i+pitch_b*k] * cb[k-ks];
     }
     a[i+pitch_a*j] = sum;
