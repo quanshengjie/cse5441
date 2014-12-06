@@ -39,7 +39,7 @@ void pingpong_bw()
         }
         t2 = MPI_Wtime();
         bw = 8*nelems/((t2-t1)/(4*niters));
-        printf("bandwidth = %lf MBps\n", bw/1.0e6);
+        printf("size: %7d\tbandwidth: %lf MBps\n", nelems, bw/1.0e6);
     } else {
         MPI_Barrier(MPI_COMM_WORLD);
         for (i=0; i<niters; i++) {
