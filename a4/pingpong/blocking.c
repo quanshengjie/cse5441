@@ -66,5 +66,6 @@ int main(int argc, char **argv)
     pingpong_bw();
 
     MPI_Finalize();
+    cleanup();
     return 0;
 }
