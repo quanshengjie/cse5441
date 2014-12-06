@@ -11,9 +11,14 @@ double *B;
 
 void setup(int argc, char **argv)
 {
-    if (argc!=3) {
-        printf("Usage: ./%s <nbytes> <niters>\n", argv[0]);
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (argc!=3 || size!=2) {
+        printf("Usage: mpiexec -n 2 ./%s <nbytes> <niters>\n", argv[0]);
     }
+
     nelems = atoi(argv[1]);
     niters = atoi(argv[2]);
     A = malloc(nelems * sizeof (double));
@@ -56,19 +61,16 @@ void cleanup()
 {
     free(A);
     free(B);
+
+    MPI_Finalize();
 }
 
 int main(int argc, char **argv)
 {
     setup(argc, argv);
 
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
     pingpong_bw();
 
-    MPI_Finalize();
     cleanup();
     return 0;
 }
