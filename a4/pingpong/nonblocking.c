@@ -32,9 +32,9 @@ void pingpong_bw()
         t1 = MPI_Wtime();
         for (i=0; i<niters; i++) {
             MPI_Isend(A, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &requests[0]);
-            MPI_Irecv(B, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &requests[1]);
-            MPI_Isend(B, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &requests[2]);
-            MPI_Irecv(A, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &requests[3]);
+            MPI_Irecv(B, nelems, MPI_DOUBLE, 1, 2, MPI_COMM_WORLD, &requests[1]);
+            MPI_Isend(B, nelems, MPI_DOUBLE, 1, 3, MPI_COMM_WORLD, &requests[2]);
+            MPI_Irecv(A, nelems, MPI_DOUBLE, 1, 4, MPI_COMM_WORLD, &requests[3]);
             MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
         }
         t2 = MPI_Wtime();
@@ -44,9 +44,9 @@ void pingpong_bw()
         MPI_Barrier(MPI_COMM_WORLD);
         for (i=0; i<niters; i++) {
             MPI_Irecv(A, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[0]);
-            MPI_Isend(A, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[1]);
-            MPI_Irecv(B, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[2]);
-            MPI_Isend(B, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[3]);
+            MPI_Isend(A, nelems, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, &requests[1]);
+            MPI_Irecv(B, nelems, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
+            MPI_Isend(B, nelems, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD, &requests[3]);
             MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
         }
     }

@@ -31,9 +31,9 @@ void pingpong_bw()
         t1 = MPI_Wtime();
         for (i=0; i<niters; i++) {
             MPI_Send(A, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD);
-            MPI_Recv(B, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Send(B, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD);
-            MPI_Recv(A, nelems, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(B, nelems, MPI_DOUBLE, 1, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(B, nelems, MPI_DOUBLE, 1, 3, MPI_COMM_WORLD);
+            MPI_Recv(A, nelems, MPI_DOUBLE, 1, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
         t2 = MPI_Wtime();
         bw = 8*nelems/((t2-t1)/(4*niters));
@@ -42,9 +42,9 @@ void pingpong_bw()
         MPI_Barrier(MPI_COMM_WORLD);
         for (i=0; i<niters; i++) {
             MPI_Recv(A, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Send(A, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
-            MPI_Recv(B, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Send(B, nelems, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
+            MPI_Send(A, nelems, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD);
+            MPI_Recv(B, nelems, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(B, nelems, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD);
         }
     }
 }
