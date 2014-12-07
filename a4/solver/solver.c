@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <mpi.h>
 
-#define N 1024
+#define N 64
 #define diag 5.0
 #define recipdiag 0.2
 #define odiag -1.0
@@ -11,9 +11,10 @@
 #define maxiter 10000
 #define nprfreq 10
 
-int rank, size;
 double clkbegin, clkend;
 double t;
+int rank;
+int size;
 double rtclock();
 
 void init(double*,double*,double*);
@@ -37,18 +38,22 @@ int main (int argc, char * argv[])
  double resid[(N+2)*(N+2)];
  double rhoinit,rhonew; 
  int i,j,iter,u;
-
- MPI_Init(&argc, &argv);
- MPI_Comm_rank(MPI_COMM_WORLD, &rank);
- MPI_Comm_size(MPI_COMM_WORLD, &size);
+ 
+ MPI_Init(&argc,&argv);
+ MPI_Comm_size(MPI_COMM_WORLD,&size);
+ MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
  init(xold,xnew,b);
  rhoinit = rhocalc(b);
+ MPI_Barrier(MPI_COMM_WORLD);
 
-  clkbegin = rtclock();
+ clkbegin = rtclock();
  for(iter=0;iter<maxiter;iter++){
-  update(xold,xnew,resid,b);
+  //update(xold,xnew,resid,b);
+  
   rhonew = rhocalc(resid);
+  if(rank == 0)
+  {
   if(rhonew<eps){
    clkend = rtclock();
    t = clkend-clkbegin;
@@ -63,13 +68,12 @@ int main (int argc, char * argv[])
    printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
           N,13.0*1e-9*N*N*(iter+1)/t,t); 
    break;
+  }
   } 
   copy(xold,xnew);
   if((iter%nprfreq)==0)
     printf("Iter = %d Resid Norm = %f\n",iter,rhonew);
  }
-
- MPI_Finalize();
 } 
 
 void init(double * xold, double * xnew, double * b)
@@ -85,69 +89,76 @@ void init(double * xold, double * xnew, double * b)
 }
 
 double rhocalc(double * A)
-{
- double S = 0.0; 
- {
- int istart, iend, chunk;
- int i, j;
- double tmp = 0.0;
- chunk = N/size;
- istart = (rank*chunk)+1;
- iend = istart + chunk;
- for(i=istart; i<iend; i++) {
-   for(j=1;j<N+1;j++) {
-     tmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
-   }
- }
- S += tmp;
- }
- return(sqrt(S));
+{ 
+ double tmp;
+ tmp =0.0;
+  int id, i, j, nthrds, ibegin, iend, chunk;
+  double ptmp;
+  id=rank;
+  chunk = N/size;
+  ibegin = (id*chunk)+1;
+  iend = ibegin + chunk;
+  ptmp = 0.0;
+  for(i=ibegin;i<iend;i++)
+    for(j=1;j<N+1;j++)
+      ptmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
+ MPI_Reduce(&ptmp, &tmp, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD); 
+ return(sqrt(tmp));
 }
 
 void update(double * xold,double * xnew,double * resid, double * b)
 {
- {
- int istart, iend, chunk;
- int i, j;
- chunk = N/size;
- istart = (rank*chunk)+1;
- iend = istart + chunk;
- for(i=istart; i<iend; i++) {
-   for(j=1;j<N+1;j++) {
-     xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
-     xnew[i*(N+2)+j]*=recipdiag;
-   }
- }
- }
-
- {
- int istart, iend, chunk;
- int i, j;
- chunk = N/size;
- istart = (rank*chunk)+1;
- iend = istart + chunk;
- for(i=istart; i<iend; i++) {
-   for(j=1;j<N+1;j++) {
-     resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
-   }
- } 
- }
+  int id, i, j, nthrds, ibegin, iend, chunk;
+  id=rank;
+  chunk = N/size;
+  MPI_Status status;
+ 
+  ibegin = (id*chunk)+1;
+  iend = ibegin + chunk;
+  
+  if(rank != 0)
+  {
+    MPI_Send(&xold[ibegin], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD);
+    MPI_Recv(&xold[ibegin-1], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &status);
+  }
+  if(rank != size-1)
+  {
+   MPI_Send(&xold[iend], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD);
+   MPI_Recv(&xold[iend+1], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &status);
+  }
+  for(i=ibegin; i<iend ;i++)
+  {
+    for(j=1;j<N+1;j++)
+    {
+      xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
+      xnew[i*(N+2)+j]*=recipdiag;
+    }
+  }
+  
+  MPI_Send(&xnew[ibegin], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD);
+  MPI_Recv(&xnew[ibegin-1], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &status);
+  MPI_Send(&xnew[iend], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD);
+  MPI_Recv(&xnew[iend+1], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &status);
+  
+  for(i=ibegin;i<iend;i++)
+  {
+    for(j=1;j<N+1;j++){
+      resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
+    }
+  } 
 } 
   
 void copy(double * xold, double * xnew)
-{ 
- {
- int istart, iend, chunk;
- int i, j;
- chunk = N/size;
- istart = (rank*chunk)+1;
- iend = istart + chunk;
- for(i=istart; i<iend; i++) {
-  for(j=1;j<N+1;j++) {
-    xold[i*(N+2)+j]=xnew[i*(N+2)+j];
-  }
- }
- }
+{
+  int id, i, j, nthrds, ibegin, iend, chunk;
+  id=rank;
+  chunk = N/size;
+  ibegin = (id*chunk)+1;
+  iend = ibegin + chunk;
+
+  for(i=ibegin;i<iend;i++)
+   for(j=1;j<N+1;j++)
+     xold[i*(N+2)+j]=xnew[i*(N+2)+j];
 }
 
 double rtclock()
