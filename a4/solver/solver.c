@@ -105,8 +105,9 @@ int main (int argc, char * argv[])
 
             break;
         }
+
         copy(xold,xnew);
-        if(!rank && (iter%nprfreq)==0)
+        if(rank==0 && (iter%nprfreq)==0)
             printf("Iter = %d Resid Norm = %f\n",iter,rhonew);
     }
     return 0;
@@ -147,7 +148,6 @@ void update(double * xold,double * xnew,double * resid, double * b)
         MPI_Isend(&xold[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &requests[0]);
         MPI_Irecv(&xold[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &requests[1]);
     }
-
     if(rank != size-1) {
         MPI_Isend(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[2]);
         MPI_Irecv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[3]);
@@ -156,14 +156,13 @@ void update(double * xold,double * xnew,double * resid, double * b)
         MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
     if(rank != size-1)
         MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
+
     for(i=ibegin; i<iend ;i++) {
         for(j=1;j<N+1;j++) {
             xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
             xnew[i*(N+2)+j]*=recipdiag;
         }
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
 
     if(rank != 0) {
         MPI_Isend(&xnew[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &requests[0]);
