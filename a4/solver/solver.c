@@ -17,6 +17,7 @@ double clkbegin, clkend;
 double t;
 int rank;
 int size;
+int ibegin, iend, chunk;
 double rtclock();
 
 void init(double*,double*,double*);
@@ -49,6 +50,10 @@ int main (int argc, char * argv[])
     MPI_Comm_size(MPI_COMM_WORLD,&size);
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
+    chunk = N/size;
+    ibegin = (rank*chunk)+1;
+    iend = ibegin + chunk;
+
     init(xold,xnew,b);
     rhoinit = rhocalc(b);
 
@@ -64,15 +69,12 @@ int main (int argc, char * argv[])
             r2 = i2/(N/size);
             r3 = i3/(N/size);
 
-            if(rank==r1) {
+            if(rank==r1)
                 MPI_Isend(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[0]);
-            }
-            if(rank==r2) {
+            if(rank==r2)
                 MPI_Isend(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[1]);
-            }
-            if(rank==r3) {
+            if(rank==r3)
                 MPI_Isend(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
-            }
 
             if(rank == 0) {
                 MPI_Irecv(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, r1, 3, MPI_COMM_WORLD, &requests[3]);
@@ -94,19 +96,17 @@ int main (int argc, char * argv[])
                         N,13.0*1e-9*N*N*(iter+1)/t,t); 
             } 
 
-            if(rank==r1) {
+            if(rank==r1)
                 MPI_Waitall(1, &requests[0], MPI_STATUSES_IGNORE);
-            }
-            if(rank==r2) {
+            if(rank==r2)
                 MPI_Waitall(1, &requests[1], MPI_STATUSES_IGNORE);
-            }
-            if(rank==r3) {
+            if(rank==r3)
                 MPI_Waitall(1, &requests[2], MPI_STATUSES_IGNORE);
-            }
+
             break;
         }
         copy(xold,xnew);
-        if((iter%nprfreq)==0 && rank==0)
+        if(!rank && (iter%nprfreq)==0)
             printf("Iter = %d Resid Norm = %f\n",iter,rhonew);
     }
     return 0;
@@ -115,8 +115,9 @@ int main (int argc, char * argv[])
 void init(double * xold, double * xnew, double * b)
 { 
     int i,j;
-    for(i=0;i<N+2;i++){
-        for(j=0;j<N+2;j++){
+
+    for(i=0;i<N+2;i++) {
+        for(j=0;j<N+2;j++) {
             xold[i*(N+2)+j]=0.0;
             xnew[i*(N+2)+j]=0.0;
             b[i*(N+2)+j]=i+j; 
@@ -126,49 +127,37 @@ void init(double * xold, double * xnew, double * b)
 
 double rhocalc(double * A)
 { 
-    double tmp;
-    tmp =0.0;
-    int id, i, j, nthrds, ibegin, iend, chunk;
-    double ptmp;
-    id=rank;
-    chunk = N/size;
-    ibegin = (id*chunk)+1;
-    iend = ibegin + chunk;
-    ptmp = 0.0;
+    int i, j; 
+    double tmp=0.0, S;
+
     for(i=ibegin;i<iend;i++)
         for(j=1;j<N+1;j++)
-            ptmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
-    MPI_Allreduce(&ptmp, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); 
-    return(sqrt(tmp));
+            tmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
+
+    MPI_Allreduce(&tmp, &S, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); 
+    return(sqrt(S));
 }
 
 void update(double * xold,double * xnew,double * resid, double * b)
 {
-    int id, i, j, nthrds, ibegin, iend, chunk;
-    id=rank;
-    chunk = N/size;
+    int i, j;
     MPI_Request requests[4];
 
-    ibegin = (id*chunk)+1;
-    iend = ibegin + chunk;
-
-    if(rank != 0)
-    {
+    if(rank != 0) {
         MPI_Isend(&xold[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &requests[0]);
         MPI_Irecv(&xold[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &requests[1]);
-        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
     }
 
-    if(rank != size-1)
-    {
+    if(rank != size-1) {
         MPI_Isend(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[2]);
         MPI_Irecv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[3]);
-        MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
     }
-    for(i=ibegin; i<iend ;i++)
-    {
-        for(j=1;j<N+1;j++)
-        {
+    if(rank != 0)
+        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
+    if(rank != size-1)
+        MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
+    for(i=ibegin; i<iend ;i++) {
+        for(j=1;j<N+1;j++) {
             xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
             xnew[i*(N+2)+j]*=recipdiag;
         }
@@ -176,22 +165,21 @@ void update(double * xold,double * xnew,double * resid, double * b)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    if(rank != 0)
-    {
+    if(rank != 0) {
         MPI_Isend(&xnew[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &requests[0]);
         MPI_Irecv(&xnew[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &requests[1]);
-        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
     }
-    if(rank != size -1)
-    {
+    if(rank != size -1) {
         MPI_Isend(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &requests[2]);
         MPI_Irecv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &requests[3]);
-        MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
     }
+    if(rank != 0)
+        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
+    if(rank != size-1)
+        MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
 
-    for(i=ibegin;i<iend;i++)
-    {
-        for(j=1;j<N+1;j++){
+    for(i=ibegin;i<iend;i++) {
+        for(j=1;j<N+1;j++) {
             resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
         }
     }
@@ -199,11 +187,7 @@ void update(double * xold,double * xnew,double * resid, double * b)
 
 void copy(double * xold, double * xnew)
 {
-    int id, i, j, nthrds, ibegin, iend, chunk;
-    id=rank;
-    chunk = N/size;
-    ibegin = (id*chunk)+1;
-    iend = ibegin + chunk;
+    int i, j;
 
     for(i=ibegin;i<iend;i++)
         for(j=1;j<N+1;j++)
