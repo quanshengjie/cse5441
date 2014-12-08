@@ -39,6 +39,7 @@ int main (int argc, char * argv[])
     int i,j,ui;
     int r1, r2, r3;
     int i1, i2, i3;
+    double s1[2], s2[1], s3[2];
     MPI_Request requests[6];
 
     double *b = malloc(sizeof(double)*((N+2)*(N+2)));
@@ -69,17 +70,25 @@ int main (int argc, char * argv[])
             r2 = i2/(N/size);
             r3 = i3/(N/size);
 
-            if(rank==r1)
-                MPI_Isend(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[0]);
-            if(rank==r2)
-                MPI_Isend(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[1]);
-            if(rank==r3)
-                MPI_Isend(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
+            if(rank==r1) {
+                s1[0] = xnew[i1*(N+2)+i1];
+                s1[1] = xnew[i1*(N+2)+i3];
+                MPI_Isend(s1, 2, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[0]);
+            }
+            if(rank==r2) {
+                s2[0] = xnew[i2*(N+2)+i2];
+                MPI_Isend(s2, 1, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, &requests[1]);
+            }
+            if(rank==r3) {
+                s3[0] = xnew[i3*(N+2)+i1];
+                s3[1] = xnew[i3*(N+2)+i3];
+                MPI_Isend(s3, 2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
+            }
 
             if(rank == 0) {
-                MPI_Irecv(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, r1, 3, MPI_COMM_WORLD, &requests[3]);
-                MPI_Irecv(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, r2, 3, MPI_COMM_WORLD, &requests[4]);
-                MPI_Irecv(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, r3, 3, MPI_COMM_WORLD, &requests[5]);
+                MPI_Irecv(s1, 2, MPI_DOUBLE, r1, 1, MPI_COMM_WORLD, &requests[3]);
+                MPI_Irecv(s2, 1, MPI_DOUBLE, r2, 2, MPI_COMM_WORLD, &requests[4]);
+                MPI_Irecv(s3, 2, MPI_DOUBLE, r3, 3, MPI_COMM_WORLD, &requests[5]);
                 MPI_Waitall(3, &requests[3], MPI_STATUSES_IGNORE);
 
                 clkend = rtclock();
@@ -87,11 +96,11 @@ int main (int argc, char * argv[])
                 printf("Solution converged in %d iterations\n",iter);
                 printf("Final residual norm = %f\n",rhonew);
                 printf("Solution at center and four corners of interior N/2 by N/2 grid : \n");
-                i=i1; j=i1; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i1; j=i3; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i2; j=i2; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i3; j=i1; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i3; j=i3; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+                i=i1; j=i1; printf("xnew[%d][%d]=%f\n",i,j,s1[0]);
+                i=i1; j=i3; printf("xnew[%d][%d]=%f\n",i,j,s1[1]);
+                i=i2; j=i2; printf("xnew[%d][%d]=%f\n",i,j,s2[0]);
+                i=i3; j=i1; printf("xnew[%d][%d]=%f\n",i,j,s3[0]);
+                i=i3; j=i3; printf("xnew[%d][%d]=%f\n",i,j,s3[1]);
                 printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
                         N,13.0*1e-9*N*N*(iter+1)/t,t); 
             } 
@@ -142,23 +151,22 @@ double rhocalc(double * A)
 void update(double * xold,double * xnew,double * resid, double * b)
 {
     int i, j;
+    int offset=2, count=0;
     MPI_Request requests[4];
 
     if(rank != 0) {
-        MPI_Isend(&xold[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &requests[0]);
-        MPI_Irecv(&xold[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &requests[1]);
+        offset = 0;
+        MPI_Isend(&xold[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 4, MPI_COMM_WORLD, &requests[0]);
+        MPI_Irecv(&xold[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 4, MPI_COMM_WORLD, &requests[1]);
+        count += 2;
     }
     if(rank != size-1) {
-        MPI_Isend(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[2]);
-        MPI_Irecv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[3]);
+        MPI_Isend(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 4, MPI_COMM_WORLD, &requests[2]);
+        MPI_Irecv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 4, MPI_COMM_WORLD, &requests[3]);
+        count += 2;
     }
 
-    if(rank == 0)
-        MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
-    else if(rank == size-1)
-        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
-    else
-        MPI_Waitall(4, &requests[0], MPI_STATUSES_IGNORE);
+    MPI_Waitall(count, &requests[offset], MPI_STATUSES_IGNORE);
 
     for(i=ibegin; i<iend ;i++) {
         for(j=1;j<N+1;j++) {
@@ -167,21 +175,20 @@ void update(double * xold,double * xnew,double * resid, double * b)
         }
     }
 
+    offset=2, count=0;
     if(rank != 0) {
-        MPI_Isend(&xnew[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &requests[0]);
-        MPI_Irecv(&xnew[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &requests[1]);
+        offset = 0;
+        MPI_Isend(&xnew[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 5, MPI_COMM_WORLD, &requests[0]);
+        MPI_Irecv(&xnew[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 5, MPI_COMM_WORLD, &requests[1]);
+        count += 2;
     }
     if(rank != size -1) {
-        MPI_Isend(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &requests[2]);
-        MPI_Irecv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &requests[3]);
+        MPI_Isend(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 5, MPI_COMM_WORLD, &requests[2]);
+        MPI_Irecv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 5, MPI_COMM_WORLD, &requests[3]);
+        count += 2;
     }
 
-    if(rank == 0)
-        MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
-    else if(rank == size-1)
-        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
-    else
-        MPI_Waitall(4, &requests[0], MPI_STATUSES_IGNORE);
+    MPI_Waitall(count, &requests[offset], MPI_STATUSES_IGNORE);
 
     for(i=ibegin;i<iend;i++) {
         for(j=1;j<N+1;j++) {
