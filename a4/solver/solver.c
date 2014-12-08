@@ -97,11 +97,11 @@ int main (int argc, char * argv[])
             } 
 
             if(rank==r1)
-                MPI_Waitall(1, &requests[0], MPI_STATUSES_IGNORE);
+                MPI_Wait(&requests[0], MPI_STATUSES_IGNORE);
             if(rank==r2)
-                MPI_Waitall(1, &requests[1], MPI_STATUSES_IGNORE);
+                MPI_Wait(&requests[1], MPI_STATUSES_IGNORE);
             if(rank==r3)
-                MPI_Waitall(1, &requests[2], MPI_STATUSES_IGNORE);
+                MPI_Wait(&requests[2], MPI_STATUSES_IGNORE);
 
             break;
         }
@@ -152,10 +152,13 @@ void update(double * xold,double * xnew,double * resid, double * b)
         MPI_Isend(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[2]);
         MPI_Irecv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &requests[3]);
     }
-    if(rank != 0)
-        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
-    if(rank != size-1)
+
+    if(rank == 0)
         MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
+    else if(rank == size-1)
+        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
+    else
+        MPI_Waitall(4, &requests[0], MPI_STATUSES_IGNORE);
 
     for(i=ibegin; i<iend ;i++) {
         for(j=1;j<N+1;j++) {
@@ -172,10 +175,13 @@ void update(double * xold,double * xnew,double * resid, double * b)
         MPI_Isend(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &requests[2]);
         MPI_Irecv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &requests[3]);
     }
-    if(rank != 0)
-        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
-    if(rank != size-1)
+
+    if(rank == 0)
         MPI_Waitall(2, &requests[2], MPI_STATUSES_IGNORE);
+    else if(rank == size-1)
+        MPI_Waitall(2, &requests[0], MPI_STATUSES_IGNORE);
+    else
+        MPI_Waitall(4, &requests[0], MPI_STATUSES_IGNORE);
 
     for(i=ibegin;i<iend;i++) {
         for(j=1;j<N+1;j++) {
