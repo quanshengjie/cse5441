@@ -7,7 +7,7 @@
 ITER=3
 
 module load mvapich2
-cd $HOME/5441/a4/solver
+cd $HOME/cse5441/a4/solver
 
 for np in 1 4 8 12
 do
@@ -15,6 +15,6 @@ do
    do
         echo "### nprocs=$np iteration=$i"
         mpiexec -n $np ./solver
-        echo "\n\n"
+	sleep 1
    done
 done

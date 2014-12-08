@@ -58,10 +58,13 @@ int main (int argc, char * argv[])
     init(xold,xnew,b);
     rhoinit = rhocalc(b);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     clkbegin = rtclock();
+
     for(iter=0;iter<maxiter;iter++){
         update(xold,xnew,resid,b);
         rhonew = rhocalc(resid);
+
         if(rhonew<eps){
             i1 = (N+2)/4;
             i2 = (N+1)/2;
