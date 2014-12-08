@@ -43,10 +43,10 @@ int main (int argc, char * argv[])
     double s1[2], s2[1], s3[2];
     MPI_Request requests[6];
 
-    b = malloc(sizeof(double)*((N+2)*(N+2)));
-    x[old] = malloc(sizeof(double)*((N+2)*(N+2)));
-    x[new] = malloc(sizeof(double)*((N+2)*(N+2)));
-    resid = malloc(sizeof(double)*((N+2)*(N+2)));
+    b = malloc((N+2)*(N+2)*sizeof(double));
+    x[old] = calloc((N+2)*(N+2),sizeof(double));
+    x[new] = calloc((N+2)*(N+2),sizeof(double));
+    resid = malloc((N+2)*(N+2)*sizeof(double));
 
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD,&size);
@@ -134,8 +134,6 @@ void init(double **x, double * b)
 
     for(i=0;i<N+2;i++) {
         for(j=0;j<N+2;j++) {
-            x[0][i*(N+2)+j]=0.0;
-            x[1][i*(N+2)+j]=0.0;
             b[i*(N+2)+j]=i+j; 
         }
     }
