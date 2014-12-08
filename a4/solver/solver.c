@@ -35,13 +35,13 @@ void update(double**,double*,double*);
 //     rhoinit, rhonew hold the initial and current residual error norms, resp.
 int main (int argc, char * argv[])
 {
+    int i,j;
+    int row1, row2, row3;
+    int rank1, rank2, rank3;
     double rhoinit,rhonew; 
-    int i,j,ui;
-    int r1, r2, r3;
-    int i1, i2, i3;
+    double *b, *x[2], *resid;
     double s1[2], s2[1], s3[2];
     MPI_Request requests[6];
-    double *b, *x[2], *resid;
 
     b = malloc(sizeof(double)*((N+2)*(N+2)));
     x[old] = malloc(sizeof(double)*((N+2)*(N+2)));
@@ -56,6 +56,13 @@ int main (int argc, char * argv[])
     ibegin = (rank*chunk)+1;
     iend = ibegin + chunk;
 
+    row1 = (N+2)/4;
+    row2 = (N+1)/2;
+    row3 = 3*(N+2)/4;
+    rank1 = row1/chunk;
+    rank2 = row2/chunk;
+    rank3 = row3/chunk;
+
     init(x,b);
     rhoinit = rhocalc(b);
 
@@ -67,32 +74,25 @@ int main (int argc, char * argv[])
         rhonew = rhocalc(resid);
 
         if(rhonew<eps){
-            i1 = (N+2)/4;
-            i2 = (N+1)/2;
-            i3 = 3*(N+2)/4;
-            r1 = i1/(N/size);
-            r2 = i2/(N/size);
-            r3 = i3/(N/size);
-
-            if(rank==r1) {
-                s1[0] = x[new][i1*(N+2)+i1];
-                s1[1] = x[new][i1*(N+2)+i3];
+            if(rank==rank1) {
+                s1[0] = x[new][row1*(N+2)+row1];
+                s1[1] = x[new][row1*(N+2)+row3];
                 MPI_Isend(s1, 2, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[0]);
             }
-            if(rank==r2) {
-                s2[0] = x[new][i2*(N+2)+i2];
+            if(rank==rank2) {
+                s2[0] = x[new][row2*(N+2)+row2];
                 MPI_Isend(s2, 1, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, &requests[1]);
             }
-            if(rank==r3) {
-                s3[0] = x[new][i3*(N+2)+i1];
-                s3[1] = x[new][i3*(N+2)+i3];
+            if(rank==rank3) {
+                s3[0] = x[new][row3*(N+2)+row1];
+                s3[1] = x[new][row3*(N+2)+row3];
                 MPI_Isend(s3, 2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
             }
 
             if(rank == 0) {
-                MPI_Irecv(s1, 2, MPI_DOUBLE, r1, 1, MPI_COMM_WORLD, &requests[3]);
-                MPI_Irecv(s2, 1, MPI_DOUBLE, r2, 2, MPI_COMM_WORLD, &requests[4]);
-                MPI_Irecv(s3, 2, MPI_DOUBLE, r3, 3, MPI_COMM_WORLD, &requests[5]);
+                MPI_Irecv(s1, 2, MPI_DOUBLE, rank1, 1, MPI_COMM_WORLD, &requests[3]);
+                MPI_Irecv(s2, 1, MPI_DOUBLE, rank2, 2, MPI_COMM_WORLD, &requests[4]);
+                MPI_Irecv(s3, 2, MPI_DOUBLE, rank3, 3, MPI_COMM_WORLD, &requests[5]);
                 MPI_Waitall(3, &requests[3], MPI_STATUSES_IGNORE);
 
                 clkend = rtclock();
@@ -100,20 +100,20 @@ int main (int argc, char * argv[])
                 printf("Solution converged in %d iterations\n",iter);
                 printf("Final residual norm = %f\n",rhonew);
                 printf("Solution at center and four corners of interior N/2 by N/2 grid : \n");
-                i=i1; j=i1; printf("xnew[%d][%d]=%f\n",i,j,s1[0]);
-                i=i1; j=i3; printf("xnew[%d][%d]=%f\n",i,j,s1[1]);
-                i=i2; j=i2; printf("xnew[%d][%d]=%f\n",i,j,s2[0]);
-                i=i3; j=i1; printf("xnew[%d][%d]=%f\n",i,j,s3[0]);
-                i=i3; j=i3; printf("xnew[%d][%d]=%f\n",i,j,s3[1]);
+                i=row1; j=row1; printf("xnew[%d][%d]=%f\n",i,j,s1[0]);
+                i=row1; j=row3; printf("xnew[%d][%d]=%f\n",i,j,s1[1]);
+                i=row2; j=row2; printf("xnew[%d][%d]=%f\n",i,j,s2[0]);
+                i=row3; j=row1; printf("xnew[%d][%d]=%f\n",i,j,s3[0]);
+                i=row3; j=row3; printf("xnew[%d][%d]=%f\n",i,j,s3[1]);
                 printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
                         N,13.0*1e-9*N*N*(iter+1)/t,t); 
             } 
 
-            if(rank==r1)
+            if(rank==rank1)
                 MPI_Wait(&requests[0], MPI_STATUSES_IGNORE);
-            if(rank==r2)
+            if(rank==rank2)
                 MPI_Wait(&requests[1], MPI_STATUSES_IGNORE);
-            if(rank==r3)
+            if(rank==rank3)
                 MPI_Wait(&requests[2], MPI_STATUSES_IGNORE);
 
             break;
