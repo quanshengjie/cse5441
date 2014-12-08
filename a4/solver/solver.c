@@ -38,6 +38,7 @@ int main (int argc, char * argv[])
     int i,j,ui;
     int r1, r2, r3;
     int i1, i2, i3;
+    MPI_Request requests[6];
 
     double *b = malloc(sizeof(double)*((N+2)*(N+2)));
     double *xold= malloc(sizeof(double)*((N+2)*(N+2)));
@@ -53,34 +54,31 @@ int main (int argc, char * argv[])
 
     clkbegin = rtclock();
     for(iter=0;iter<maxiter;iter++){
-
         update(xold,xnew,resid,b);
-
         rhonew = rhocalc(resid);
-
         if(rhonew<eps){
-
             i1 = (N+2)/4;
             i2 = (N+1)/2;
             i3 = 3*(N+2)/4;
             r1 = i1/(N/size);
             r2 = i2/(N/size);
             r3 = i3/(N/size);
+
             if(rank==r1) {
-                MPI_Send(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+                MPI_Isend(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[0]);
             }
             if(rank==r2) {
-                MPI_Send(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+                MPI_Isend(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[1]);
             }
             if(rank==r3) {
-                MPI_Send(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+                MPI_Isend(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
             }
+
             if(rank == 0) {
-
-                MPI_Recv(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, r1, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Recv(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, r2, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Recv(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, r3, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
+                MPI_Irecv(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, r1, 3, MPI_COMM_WORLD, &requests[3]);
+                MPI_Irecv(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, r2, 3, MPI_COMM_WORLD, &requests[4]);
+                MPI_Irecv(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, r3, 3, MPI_COMM_WORLD, &requests[5]);
+                MPI_Waitall(3, &requests[3], MPI_STATUSES_IGNORE);
 
                 clkend = rtclock();
                 t = clkend-clkbegin;
@@ -95,6 +93,16 @@ int main (int argc, char * argv[])
                 printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
                         N,13.0*1e-9*N*N*(iter+1)/t,t); 
             } 
+
+            if(rank==r1) {
+                MPI_Waitall(1, &requests[0], MPI_STATUSES_IGNORE);
+            }
+            if(rank==r2) {
+                MPI_Waitall(1, &requests[1], MPI_STATUSES_IGNORE);
+            }
+            if(rank==r3) {
+                MPI_Waitall(1, &requests[2], MPI_STATUSES_IGNORE);
+            }
             break;
         }
         copy(xold,xnew);
