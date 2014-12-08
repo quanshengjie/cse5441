@@ -13,6 +13,7 @@
 #define nprfreq 10
 
 int iter=-1;
+int old=0, new=1, tmp;
 double clkbegin, clkend;
 double t;
 int rank;
@@ -20,10 +21,9 @@ int size;
 int ibegin, iend, chunk;
 double rtclock();
 
-void init(double*,double*,double*);
+void init(double**,double*);
 double rhocalc(double*);
-void update(double*,double*,double*,double*); 
-void copy(double*,double*);
+void update(double**,double*,double*); 
 //     N is size of physical grid from which the sparse system is derived
 //     diag is the value of each diagonal element of the sparse matrix
 //     recipdiag is the reciprocal of each diagonal element 
@@ -41,11 +41,12 @@ int main (int argc, char * argv[])
     int i1, i2, i3;
     double s1[2], s2[1], s3[2];
     MPI_Request requests[6];
+    double *b, *x[2], *resid;
 
-    double *b = malloc(sizeof(double)*((N+2)*(N+2)));
-    double *xold= malloc(sizeof(double)*((N+2)*(N+2)));
-    double *xnew= malloc(sizeof(double)*((N+2)*(N+2)));
-    double *resid= malloc(sizeof(double)*((N+2)*(N+2)));
+    b = malloc(sizeof(double)*((N+2)*(N+2)));
+    x[old] = malloc(sizeof(double)*((N+2)*(N+2)));
+    x[new] = malloc(sizeof(double)*((N+2)*(N+2)));
+    resid = malloc(sizeof(double)*((N+2)*(N+2)));
 
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD,&size);
@@ -55,14 +56,14 @@ int main (int argc, char * argv[])
     ibegin = (rank*chunk)+1;
     iend = ibegin + chunk;
 
-    init(xold,xnew,b);
+    init(x,b);
     rhoinit = rhocalc(b);
 
     MPI_Barrier(MPI_COMM_WORLD);
     clkbegin = rtclock();
 
     for(iter=0;iter<maxiter;iter++){
-        update(xold,xnew,resid,b);
+        update(x,resid,b);
         rhonew = rhocalc(resid);
 
         if(rhonew<eps){
@@ -74,17 +75,17 @@ int main (int argc, char * argv[])
             r3 = i3/(N/size);
 
             if(rank==r1) {
-                s1[0] = xnew[i1*(N+2)+i1];
-                s1[1] = xnew[i1*(N+2)+i3];
+                s1[0] = x[new][i1*(N+2)+i1];
+                s1[1] = x[new][i1*(N+2)+i3];
                 MPI_Isend(s1, 2, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &requests[0]);
             }
             if(rank==r2) {
-                s2[0] = xnew[i2*(N+2)+i2];
+                s2[0] = x[new][i2*(N+2)+i2];
                 MPI_Isend(s2, 1, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, &requests[1]);
             }
             if(rank==r3) {
-                s3[0] = xnew[i3*(N+2)+i1];
-                s3[1] = xnew[i3*(N+2)+i3];
+                s3[0] = x[new][i3*(N+2)+i1];
+                s3[1] = x[new][i3*(N+2)+i3];
                 MPI_Isend(s3, 2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD, &requests[2]);
             }
 
@@ -118,21 +119,23 @@ int main (int argc, char * argv[])
             break;
         }
 
-        copy(xold,xnew);
+        tmp = old;
+        old = new;
+        new = tmp;
         if(rank==0 && (iter%nprfreq)==0)
             printf("Iter = %d Resid Norm = %f\n",iter,rhonew);
     }
     return 0;
 } 
 
-void init(double * xold, double * xnew, double * b)
+void init(double **x, double * b)
 { 
     int i,j;
 
     for(i=0;i<N+2;i++) {
         for(j=0;j<N+2;j++) {
-            xold[i*(N+2)+j]=0.0;
-            xnew[i*(N+2)+j]=0.0;
+            x[0][i*(N+2)+j]=0.0;
+            x[1][i*(N+2)+j]=0.0;
             b[i*(N+2)+j]=i+j; 
         }
     }
@@ -151,7 +154,7 @@ double rhocalc(double * A)
     return(sqrt(S));
 }
 
-void update(double * xold,double * xnew,double * resid, double * b)
+void update(double **x, double * resid, double * b)
 {
     int i, j;
     int offset=2, count=0;
@@ -159,13 +162,13 @@ void update(double * xold,double * xnew,double * resid, double * b)
 
     if(rank != 0) {
         offset = 0;
-        MPI_Isend(&xold[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 4, MPI_COMM_WORLD, &requests[0]);
-        MPI_Irecv(&xold[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 4, MPI_COMM_WORLD, &requests[1]);
+        MPI_Isend(&x[old][ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 4, MPI_COMM_WORLD, &requests[0]);
+        MPI_Irecv(&x[old][(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 4, MPI_COMM_WORLD, &requests[1]);
         count += 2;
     }
     if(rank != size-1) {
-        MPI_Isend(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 4, MPI_COMM_WORLD, &requests[2]);
-        MPI_Irecv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 4, MPI_COMM_WORLD, &requests[3]);
+        MPI_Isend(&x[old][(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 4, MPI_COMM_WORLD, &requests[2]);
+        MPI_Irecv(&x[old][iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 4, MPI_COMM_WORLD, &requests[3]);
         count += 2;
     }
 
@@ -173,21 +176,21 @@ void update(double * xold,double * xnew,double * resid, double * b)
 
     for(i=ibegin; i<iend ;i++) {
         for(j=1;j<N+1;j++) {
-            xnew[i*(N+2)+j]=b[i*(N+2)+j]-odiag*(xold[i*(N+2)+j-1]+xold[i*(N+2)+j+1]+xold[(i+1)*(N+2)+j]+xold[(i-1)*(N+2)+j]);
-            xnew[i*(N+2)+j]*=recipdiag;
+            x[new][i*(N+2)+j]=b[i*(N+2)+j]-odiag*(x[old][i*(N+2)+j-1]+x[old][i*(N+2)+j+1]+x[old][(i+1)*(N+2)+j]+x[old][(i-1)*(N+2)+j]);
+            x[new][i*(N+2)+j]*=recipdiag;
         }
     }
 
     offset=2, count=0;
     if(rank != 0) {
         offset = 0;
-        MPI_Isend(&xnew[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 5, MPI_COMM_WORLD, &requests[0]);
-        MPI_Irecv(&xnew[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 5, MPI_COMM_WORLD, &requests[1]);
+        MPI_Isend(&x[new][ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 5, MPI_COMM_WORLD, &requests[0]);
+        MPI_Irecv(&x[new][(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 5, MPI_COMM_WORLD, &requests[1]);
         count += 2;
     }
     if(rank != size -1) {
-        MPI_Isend(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 5, MPI_COMM_WORLD, &requests[2]);
-        MPI_Irecv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 5, MPI_COMM_WORLD, &requests[3]);
+        MPI_Isend(&x[new][(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 5, MPI_COMM_WORLD, &requests[2]);
+        MPI_Irecv(&x[new][iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 5, MPI_COMM_WORLD, &requests[3]);
         count += 2;
     }
 
@@ -195,19 +198,10 @@ void update(double * xold,double * xnew,double * resid, double * b)
 
     for(i=ibegin;i<iend;i++) {
         for(j=1;j<N+1;j++) {
-            resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
+            resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*x[new][i*(N+2)+j]-odiag*(x[new][i*(N+2)+j+1]+x[new][i*(N+2)+j-1]+x[new][(i-1)*(N+2)+j]+x[new][(i+1)*(N+2)+j]);
         }
     }
 } 
-
-void copy(double * xold, double * xnew)
-{
-    int i, j;
-
-    for(i=ibegin;i<iend;i++)
-        for(j=1;j<N+1;j++)
-            xold[i*(N+2)+j]=xnew[i*(N+2)+j];
-}
 
 double rtclock()
 {
