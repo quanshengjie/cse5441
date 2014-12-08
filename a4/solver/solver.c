@@ -38,7 +38,9 @@ int main (int argc, char * argv[])
  double xnew[(N+2)*(N+2)];
  double resid[(N+2)*(N+2)];
  double rhoinit,rhonew; 
- int i,j,u;
+ int i,j,ui;
+ int r1, r2, r3;
+ int i1, i2, i3;
  
  MPI_Init(&argc,&argv);
  MPI_Comm_size(MPI_COMM_WORLD,&size);
@@ -46,34 +48,53 @@ int main (int argc, char * argv[])
 
  init(xold,xnew,b);
  rhoinit = rhocalc(b);
- MPI_Barrier(MPI_COMM_WORLD);
 
  clkbegin = rtclock();
  for(iter=0;iter<maxiter;iter++){
   update(xold,xnew,resid,b);
-  
   rhonew = rhocalc(resid);
-  if(rank == 0) {
+
   if(rhonew<eps){
+  i1 = (N+2)/4;
+  i2 = (N+1)/2;
+  i3 = 3*(N+2)/4;
+  r1 = i1/(N/size);
+  r2 = i2/(N/size);
+  r3 = i3/(N/size);
+  if(rank==r1) {
+   MPI_Send(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+  }
+  if(rank==r2) {
+   MPI_Send(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+  }
+  if(rank==r3) {
+   MPI_Send(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+  }
+  if(rank == 0) {
+   MPI_Recv(&xnew[i1*(N+2)], N+2, MPI_DOUBLE, r1, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+   MPI_Recv(&xnew[i2*(N+2)], N+2, MPI_DOUBLE, r2, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+   MPI_Recv(&xnew[i3*(N+2)], N+2, MPI_DOUBLE, r3, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  
    clkend = rtclock();
    t = clkend-clkbegin;
    printf("Solution converged in %d iterations\n",iter);
    printf("Final residual norm = %f\n",rhonew);
    printf("Solution at center and four corners of interior N/2 by N/2 grid : \n");
-   i=(N+2)/4; j=(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-   i=(N+2)/4; j=3*(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-   i=(N+1)/2; j=(N+1)/2; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-   i=3*(N+2)/4; j=(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-   i=3*(N+2)/4; j=3*(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+   i=i1; j=(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+   i=i1; j=3*(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+   i=i2; j=(N+1)/2; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+   i=i3; j=(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+   i=i3; j=3*(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
    printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
           N,13.0*1e-9*N*N*(iter+1)/t,t); 
-   break;
   } 
+  break;
   }
   copy(xold,xnew);
-  if((iter%nprfreq)==0)
+  if((iter%nprfreq)==0 && rank==0)
     printf("Iter = %d Resid Norm = %f\n",iter,rhonew);
  }
+ return 0;
 } 
 
 void init(double * xold, double * xnew, double * b)
@@ -102,8 +123,7 @@ double rhocalc(double * A)
   for(i=ibegin;i<iend;i++)
     for(j=1;j<N+1;j++)
       ptmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
- //printf("%d %d SUM: %f \n", iter, rank, ptmp);
- MPI_Reduce(&ptmp, &tmp, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD); 
+ MPI_Allreduce(&ptmp, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); 
  return(sqrt(tmp));
 }
 
@@ -135,8 +155,6 @@ void update(double * xold,double * xnew,double * resid, double * b)
       xnew[i*(N+2)+j]*=recipdiag;
     }
   }
-  if(rank < 2)
-   printf("%d %d XNEW: %f -- %f \n", iter, rank, xnew[ibegin*(N+2) + 1], xnew[(iend-1) * (N+2) + 1]);
  
   MPI_Barrier(MPI_COMM_WORLD);
   
@@ -150,17 +168,13 @@ void update(double * xold,double * xnew,double * resid, double * b)
    MPI_Send(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD);
    MPI_Recv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &status);
   }
-  MPI_Barrier(MPI_COMM_WORLD);
-  //printf("%d %d CHECK: %f -- %f \n", iter, rank, xnew[ibegin*(N+2) + 1], xnew[(iend-1) * (N+2) + 1]);
+
   for(i=ibegin;i<iend;i++)
   {
     for(j=1;j<N+1;j++){
       resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
     }
   }
-
-  if(rank < 2)
-    printf("%d %d RESID: %f -- %f \n", iter, rank, resid[ibegin*(N+2) + 1], resid[(iend-1) * (N+2) + 1]); 
 } 
   
 void copy(double * xold, double * xnew)
