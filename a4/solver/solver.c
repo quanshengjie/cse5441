@@ -85,11 +85,11 @@ int main (int argc, char * argv[])
                 printf("Solution converged in %d iterations\n",iter);
                 printf("Final residual norm = %f\n",rhonew);
                 printf("Solution at center and four corners of interior N/2 by N/2 grid : \n");
-                i=i1; j=(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i1; j=3*(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i2; j=(N+1)/2; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i3; j=(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
-                i=i3; j=3*(N+2)/4; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+                i=i1; j=i1; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+                i=i1; j=i3; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+                i=i2; j=i2; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+                i=i3; j=i1; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
+                i=i3; j=i3; printf("xnew[%d][%d]=%f\n",i,j,xnew[i*(N+2)+j]);
                 printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
                         N,13.0*1e-9*N*N*(iter+1)/t,t); 
             } 
