@@ -11,6 +11,7 @@
 #define maxiter 10000
 #define nprfreq 10
 
+int iter=-1;
 double clkbegin, clkend;
 double t;
 int rank;
@@ -37,7 +38,7 @@ int main (int argc, char * argv[])
  double xnew[(N+2)*(N+2)];
  double resid[(N+2)*(N+2)];
  double rhoinit,rhonew; 
- int i,j,iter,u;
+ int i,j,u;
  
  MPI_Init(&argc,&argv);
  MPI_Comm_size(MPI_COMM_WORLD,&size);
@@ -49,11 +50,10 @@ int main (int argc, char * argv[])
 
  clkbegin = rtclock();
  for(iter=0;iter<maxiter;iter++){
-  //update(xold,xnew,resid,b);
+  update(xold,xnew,resid,b);
   
   rhonew = rhocalc(resid);
-  if(rank == 0)
-  {
+  if(rank == 0) {
   if(rhonew<eps){
    clkend = rtclock();
    t = clkend-clkbegin;
@@ -68,8 +68,8 @@ int main (int argc, char * argv[])
    printf("Sequential Jacobi: Matrix Size = %d; %.1f GFLOPS; Time = %.3f sec; \n",
           N,13.0*1e-9*N*N*(iter+1)/t,t); 
    break;
-  }
   } 
+  }
   copy(xold,xnew);
   if((iter%nprfreq)==0)
     printf("Iter = %d Resid Norm = %f\n",iter,rhonew);
@@ -102,6 +102,7 @@ double rhocalc(double * A)
   for(i=ibegin;i<iend;i++)
     for(j=1;j<N+1;j++)
       ptmp+=A[i*(N+2)+j]*A[i*(N+2)+j];
+ //printf("%d %d SUM: %f \n", iter, rank, ptmp);
  MPI_Reduce(&ptmp, &tmp, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD); 
  return(sqrt(tmp));
 }
@@ -118,13 +119,13 @@ void update(double * xold,double * xnew,double * resid, double * b)
   
   if(rank != 0)
   {
-    MPI_Send(&xold[ibegin], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD);
-    MPI_Recv(&xold[ibegin-1], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &status);
+    MPI_Send(&xold[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD);
+    MPI_Recv(&xold[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &status);
   }
   if(rank != size-1)
   {
-   MPI_Send(&xold[iend], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD);
-   MPI_Recv(&xold[iend+1], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &status);
+   MPI_Send(&xold[(iend-1) * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD);
+   MPI_Recv(&xold[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 0, MPI_COMM_WORLD, &status);
   }
   for(i=ibegin; i<iend ;i++)
   {
@@ -134,18 +135,32 @@ void update(double * xold,double * xnew,double * resid, double * b)
       xnew[i*(N+2)+j]*=recipdiag;
     }
   }
+  if(rank < 2)
+   printf("%d %d XNEW: %f -- %f \n", iter, rank, xnew[ibegin*(N+2) + 1], xnew[(iend-1) * (N+2) + 1]);
+ 
+  MPI_Barrier(MPI_COMM_WORLD);
   
-  MPI_Send(&xnew[ibegin], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD);
-  MPI_Recv(&xnew[ibegin-1], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &status);
-  MPI_Send(&xnew[iend], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD);
-  MPI_Recv(&xnew[iend+1], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &status);
-  
+  if(rank != 0)
+  {
+   MPI_Send(&xnew[ibegin * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD);
+   MPI_Recv(&xnew[(ibegin-1) * (N+2)], N+2, MPI_DOUBLE, rank-1, 1, MPI_COMM_WORLD, &status);
+  }
+  if(rank != size -1)
+  {
+   MPI_Send(&xnew[(iend-1)*(N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD);
+   MPI_Recv(&xnew[iend * (N+2)], N+2, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &status);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  //printf("%d %d CHECK: %f -- %f \n", iter, rank, xnew[ibegin*(N+2) + 1], xnew[(iend-1) * (N+2) + 1]);
   for(i=ibegin;i<iend;i++)
   {
     for(j=1;j<N+1;j++){
       resid[i*(N+2)+j]=b[i*(N+2)+j]-diag*xnew[i*(N+2)+j]-odiag*(xnew[i*(N+2)+j+1]+xnew[i*(N+2)+j-1]+xnew[(i-1)*(N+2)+j]+xnew[(i+1)*(N+2)+j]);
     }
-  } 
+  }
+
+  if(rank < 2)
+    printf("%d %d RESID: %f -- %f \n", iter, rank, resid[ibegin*(N+2) + 1], resid[(iend-1) * (N+2) + 1]); 
 } 
   
 void copy(double * xold, double * xnew)
